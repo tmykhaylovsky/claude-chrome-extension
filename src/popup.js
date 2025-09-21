@@ -9,30 +9,30 @@ document.addEventListener('DOMContentLoaded', function() {
   const languageSelect = document.getElementById('language');
   const temperatureSelect = document.getElementById('temperature');
 
-  // 設定ボタンのイベントリスナー
+  // Settings button event listener
   settingsButton.addEventListener('click', () => {
     chrome.runtime.openOptionsPage();
   });
 
-  // コピーボタンのイベントリスナー
+  // Copy button event listener
   copyButton.addEventListener('click', async () => {
     const text = response.textContent;
     try {
       await navigator.clipboard.writeText(text);
-      copyButton.textContent = 'コピー完了!';
+      copyButton.textContent = 'Copy completed!';
       setTimeout(() => {
-        copyButton.textContent = '結果をコピー';
+        copyButton.textContent = 'copy results';
       }, 2000);
     } catch (err) {
-      console.error('クリップボードへのコピーに失敗:', err);
-      copyButton.textContent = 'コピー失敗';
+      console.error('Copy to clipboard failed:', err);
+      copyButton.textContent = 'Copy failure';
       setTimeout(() => {
-        copyButton.textContent = '結果をコピー';
+        copyButton.textContent = 'copy results';
       }, 2000);
     }
   });
 
-  // 設定を読み込む
+  // Load settings
   chrome.storage.sync.get(['language', 'temperature', 'defaultPrompt'], function(result) {
     if (result.language) {
       languageSelect.value = result.language;
@@ -45,7 +45,7 @@ document.addEventListener('DOMContentLoaded', function() {
     }
   });
 
-  // 設定の変更を保存
+  // Save configuration changes
   languageSelect.addEventListener('change', function() {
     chrome.storage.sync.set({ language: languageSelect.value });
   });
@@ -54,12 +54,12 @@ document.addEventListener('DOMContentLoaded', function() {
     chrome.storage.sync.set({ temperature: temperatureSelect.value });
   });
 
-  // プロンプトの変更を保存
+  // Save prompt changes
   prompt.addEventListener('change', function() {
     chrome.storage.sync.set({ defaultPrompt: prompt.value });
   });
 
-  // ページから選択されたテキストを取得
+  // Get selected text from the page
   chrome.tabs.query({ active: true, currentWindow: true }, async (tabs) => {
     try {
       const [tab] = tabs;
@@ -72,21 +72,21 @@ document.addEventListener('DOMContentLoaded', function() {
         input.value = result[0].result;
       }
     } catch (error) {
-      console.error('テキスト選択エラー:', error);
+      console.error('text selection error:', error);
     }
   });
 
   sendButton.addEventListener('click', async () => {
     const text = input.value.trim();
     if (!text) {
-      response.textContent = '入力テキストを入力してください。';
+      response.textContent = 'Please enter the input text.';
       return;
     }
 
-    // APIキーを取得
+    // API get key
     chrome.storage.sync.get(['claudeApiKey'], async function(result) {
       if (!result.claudeApiKey) {
-        response.textContent = 'APIキーが設定されていません。拡張機能の設定から設定してください。';
+        response.textContent = 'API The key is not set. Please set it in the extension settings.';
         return;
       }
 
@@ -97,7 +97,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
         await streamClaudeAPI(text, result.claudeApiKey, response);
       } catch (error) {
-        response.textContent = `エラーが発生しました: ${error.message}`;
+        response.textContent = `An error has occurred: ${error.message}`;
       } finally {
         sendButton.disabled = false;
         loading.style.display = 'none';
@@ -108,12 +108,12 @@ document.addEventListener('DOMContentLoaded', function() {
 
 async function streamClaudeAPI(text, apiKey, responseElement) {
   try {
-    // プロンプトとユーザー入力を組み合わせる
+    // Combining prompts with user input
     const promptText = document.getElementById('prompt').value.trim();
     const systemPrompt = getSystemPrompt(document.getElementById('language').value);
     const temperature = parseFloat(document.getElementById('temperature').value);
 
-    // メッセージを準備
+    // Prepare your message
     const messages = [];
     
     if (promptText) {
@@ -137,8 +137,8 @@ async function streamClaudeAPI(text, apiKey, responseElement) {
         'anthropic-dangerous-direct-browser-access': 'true'
       },
       body: JSON.stringify({
-        model: 'claude-3-opus-20240229',
-        max_tokens: 1000,
+        model: 'claude-4-sonnet-20250514',
+        max_tokens: 64000,
         temperature: temperature,
         system: systemPrompt,
         messages: messages,
@@ -189,12 +189,6 @@ async function streamClaudeAPI(text, apiKey, responseElement) {
 
 function getSystemPrompt(language) {
   const prompts = {
-    ja: `あなたは親切なAIアシスタントです。
-以下の原則に従って応答してください：
-- 簡潔で分かりやすい日本語を使用
-- 必要に応じて箇条書きを使用
-- 専門用語は適切に解説
-- 答えが不確かな場合はその旨を明示`,
     en: `You are a helpful AI assistant.
 Please follow these principles:
 - Use clear and concise English

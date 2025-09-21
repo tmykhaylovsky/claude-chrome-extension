@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "Claude AI Assistant",
   "version": "1.0",
-  "description": "テキストをClaudeに送信して応答を表示する拡張機能",
+  "description": "Claude Chrome Extension",
   "permissions": [
     "activeTab",
     "scripting",

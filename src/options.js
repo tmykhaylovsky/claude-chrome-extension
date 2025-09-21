@@ -3,27 +3,27 @@ document.addEventListener('DOMContentLoaded', function() {
   const saveButton = document.getElementById('saveButton');
   const messageDiv = document.getElementById('message');
 
-  // 保存されたAPIキーを読み込む
+  // Load a saved API key
   chrome.storage.sync.get(['claudeApiKey'], function(result) {
     if (result.claudeApiKey) {
       apiKeyInput.value = result.claudeApiKey;
     }
   });
 
-  // 保存ボタンのクリックイベント
+  // Save button click event
   saveButton.addEventListener('click', function() {
     const apiKey = apiKeyInput.value.trim();
     
     if (!apiKey) {
-      showMessage('APIキーを入力してください', 'error');
+      showMessage('API please enter the key', 'error');
       return;
     }
 
-    // APIキーを保存
+    // API save key
     chrome.storage.sync.set({
       claudeApiKey: apiKey
     }, function() {
-      showMessage('設定を保存しました', 'success');
+      showMessage('Settings saved', 'success');
     });
   });
 

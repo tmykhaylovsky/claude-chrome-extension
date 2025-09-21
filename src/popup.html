@@ -72,41 +72,40 @@
     <div style="display: flex; justify-content: space-between; align-items: center">
       <h2>Claude Assistant</h2>
       <button id="settingsButton" style="padding: 4px 8px;">
-        ⚙️ 設定
+        ⚙️ Settings
       </button>
     </div>
     
     <div class="settings-group">
-      <label for="language">言語:</label>
+      <label for="language">Language:</label>
       <select id="language">
-        <option value="ja">日本語</option>
         <option value="en">English</option>
       </select>
       
       <label for="temperature">Temperature:</label>
       <select id="temperature">
-        <option value="0">0 - 正確</option>
-        <option value="0.3">0.3 - バランス</option>
-        <option value="0.7">0.7 - 創造的</option>
-        <option value="1">1.0 - 自由</option>
+        <option value="0">0 - Accurate</option>
+        <option value="0.3">0.3 - Balanced</option>
+        <option value="0.7">0.7 - Creative</option>
+        <option value="1">1.0 - Freedom</option>
       </select>
     </div>
 
     <div>
-      <label for="prompt">プロンプト:</label>
-      <textarea id="prompt" placeholder="プロンプトを入力してください..."></textarea>
+      <label for="prompt">Prompt:</label>
+      <textarea id="prompt" placeholder="Please enter the prompt..."></textarea>
     </div>
     
     <div>
-      <label for="input">入力テキスト:</label>
-      <textarea id="input" placeholder="テキストを入力または選択してください..."></textarea>
+      <label for="input">Input text:</label>
+      <textarea id="input" placeholder="Enter or select text..."></textarea>
     </div>
 
     <div class="control-panel">
-      <button id="sendButton">送信</button>
-      <button id="copyButton" disabled>結果をコピー</button>
+      <button id="sendButton">Send</button>
+      <button id="copyButton" disabled>Copy results</button>
     </div>
-    <div id="loading" class="loading" style="display: none;">処理中...</div>
+    <div id="loading" class="loading" style="display: none;">Processing...</div>
     <div id="response"></div>
   </div>
   <script src="popup.js"></script>
