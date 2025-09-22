@@ -78,35 +78,17 @@ document.addEventListener('DOMContentLoaded', function () {
   });
 
   grabButton.addEventListener('click', async () => {
-    // name
-    var element = document.querySelector('h1[data-anonymize="person-name"]');
-    var personName = element ? element.textContent.trim() : '';
-    console.log(personName);
-
-    // headline
-    element = document.querySelector('h1[data-anonymize="headline"]');
-    var headline = element ? element.textContent.trim() : '';
-    console.log(headline);
-
-    // person blurb | about
-    element = document.querySelector('div[data-anonymize="person-blurb"]');
-    var about = element ? element.getAttribute('title') : '';
-    console.log(about);
-
-    // expand all positions
-    // Target buttons that contain spans with "Show more" text
-    var buttons = document.querySelectorAll('button');
-    buttons.forEach(function (button) {
-      var showMoreSpan = button.querySelector('span.button-text');
-      if (showMoreSpan && showMoreSpan.textContent.trim() === 'Show more') {
-        button.click();
-      }
-    });
-
-    // extract experience data
-    const tsvExperienceData = extractExperienceData();
-    console.log(tsvExperienceData);
-
+    const response = await sendMessageToContent('extractAll');
+    var personName = '', headline = '', about = '', tsvExperienceData = '';
+    if (response.success) {
+      personName = response.data.name;
+      headline = response.data.headline;
+      about = response.data.about;
+      tsvExperienceData = response.data.experience;
+    } else {
+      console.log('extractAll failed');
+    }
+    
     var combinedData = `${personName}\n${headline}\n${about}\n${tsvExperienceData}`;
 
     // API get key
@@ -244,8 +226,6 @@ async function streamClaudeAPI(text, apiKey, responseElement) {
   }
 }
 
-
-
 function getSystemPrompt(language) {
   const prompts = {
     en: `You are a helpful AI assistant.
@@ -376,23 +356,47 @@ async function callAnthropicMessageAPI(apiKey, profileData) {
 
     const data = await response.json();
     console.log('Full API Response:', data);
-    
+
     // Extract the actual text content from the response
     if (data.content && data.content[0] && data.content[0].text) {
-        const responseText = data.content[0].text;
-        console.log('Claude Response:', responseText);
-        console.log('Usage Stats:', data.usage);
+      const responseText = data.content[0].text;
+      console.log('Claude Response:', responseText);
+      console.log('Usage Stats:', data.usage);
 
-        response.textContent = responseText;
-        copyButton.disabled = false;
+      response.textContent = responseText;
+      copyButton.disabled = false;
     } else {
-        console.warn('Unexpected response format:', data);
-        throw new Error(`API Error: ${response.status} - ${JSON.stringify(data)}`);
+      console.warn('Unexpected response format:', data);
+      throw new Error(`API Error: ${response.status} - ${JSON.stringify(data)}`);
     }
 
-   
+
   } catch (error) {
     console.error('Error calling Anthropic API:', error);
+    throw error;
+  }
+}
+
+// Send message to content script
+async function sendMessageToContent(action, data = {}) {
+  try {
+    const tab = await getCurrentTab();
+
+    if (!tab.url.includes('linkedin.com')) {
+      throw new Error('Please navigate to a LinkedIn profile page');
+    }
+
+    return new Promise((resolve, reject) => {
+      chrome.tabs.sendMessage(tab.id, { action, ...data }, (response) => {
+        if (chrome.runtime.lastError) {
+          reject(new Error(chrome.runtime.lastError.message));
+        } else {
+          resolve(response);
+        }
+      });
+    });
+  } catch (error) {
+    console.error('Error sending message:', error);
     throw error;
   }
 }
