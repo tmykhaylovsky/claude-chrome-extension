@@ -1,5 +1,5 @@
 # Claude Chrome Extension
-[English](/README.md) | [日本語](/README.ja.md)
+[English](/README.md)
 
 A Chrome extension for interacting with the Claude AI assistant. This extension allows you to select text on any webpage and send it to Claude for analysis and response.
 
