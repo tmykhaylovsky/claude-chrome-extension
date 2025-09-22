@@ -1,6 +1,6 @@
 {
-  "manifest_version": 3,
-  "name": "Claude AI Assistant",
+  "manifest_version": 4,
+  "name": "Claude LinkedIn Sales Nav",
   "version": "1.0",
   "description": "Claude Chrome Extension",
   "permissions": [
