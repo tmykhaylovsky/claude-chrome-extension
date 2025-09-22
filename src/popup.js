@@ -121,9 +121,8 @@ document.addEventListener('DOMContentLoaded', function () {
         loading.style.display = 'block';
         response.textContent = '';
 
-        //await streamClaudeAPI(combinedData, result.claudeApiKey, response);
         debugger;
-        await callAnthropicAPI(result.claudeApiKey, combinedData);
+        await callAnthropicMessageAPI(result.claudeApiKey, combinedData);
       } catch (error) {
         response.textContent = `An error has occurred: ${error.message}`;
       } finally {
@@ -336,7 +335,7 @@ function extractExperienceData() {
   return results.join('\n');
 }
 
-async function callAnthropicAPI(apiKey, profileData) {
+async function callAnthropicMessageAPI(apiKey, profileData) {
   const apiUrl = 'https://api.anthropic.com/v1/messages';
 
   const requestBody = {
@@ -384,43 +383,14 @@ async function callAnthropicAPI(apiKey, profileData) {
         console.log('Claude Response:', responseText);
         console.log('Usage Stats:', data.usage);
 
-        responseElement.textContent = responseText;
+        response.textContent = responseText;
         copyButton.disabled = false;
     } else {
         console.warn('Unexpected response format:', data);
         throw new Error(`API Error: ${response.status} - ${JSON.stringify(data)}`);
     }
 
-    // const reader = response.body.getReader();
-    // const decoder = new TextDecoder();
-    // let buffer = '';
-
-    // while (true) {
-    //   const { value, done } = await reader.read();
-    //   if (done) break;
-
-    //   buffer += decoder.decode(value);
-    //   const lines = buffer.split('\n');
-    //   buffer = lines.pop() || '';
-
-    //   for (const line of lines) {
-    //     if (line.trim() === '') continue;
-    //     if (line.startsWith('data: ')) {
-    //       const data = line.slice(6);
-    //       if (data === '[DONE]') continue;
-
-    //       try {
-    //         const parsed = JSON.parse(data);
-    //         if (parsed.type === 'content_block_delta' && parsed.delta?.text) {
-    //           responseElement.textContent += parsed.delta.text;
-    //           copyButton.disabled = false;
-    //         }
-    //       } catch (e) {
-    //         console.error('Failed to parse SSE message:', e);
-    //       }
-    //     }
-    //   }
-    // }
+   
   } catch (error) {
     console.error('Error calling Anthropic API:', error);
     throw error;
