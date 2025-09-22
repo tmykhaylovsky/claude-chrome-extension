@@ -399,7 +399,8 @@ ${profileData}`;
             headers: {
                 'Content-Type': 'application/json',
                 'x-api-key': apiKey,
-                'anthropic-version': '2023-06-01'
+                'anthropic-version': '2023-06-01',
+                'anthropic-dangerous-direct-browser-access': 'true' // Add this header
             },
             body: JSON.stringify(requestBody)
         });
