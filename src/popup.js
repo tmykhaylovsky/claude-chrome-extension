@@ -28,6 +28,44 @@ async function sendMessageToContent(action, data = {}) {
   }
 }
 
+// Listen for messages from content script
+chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
+  if (request.action === 'processWithAPI') {
+    handleAPIProcessing(request.data, sendResponse);
+    return true; // Keep message channel open for async response
+  }
+});
+
+// Handle API processing from content script
+async function handleAPIProcessing(extractedData, sendResponse) {
+  try {
+    // Get API key
+    chrome.storage.sync.get(['claudeApiKey'], async (result) => {
+      if (!result.claudeApiKey) {
+        sendResponse({ success: false, error: 'API key not set. Please configure in extension settings.' });
+        return;
+      }
+
+      try {
+        // Format data same way as original popup
+        const combinedData = `${extractedData.name}\n${extractedData.headline}\n${extractedData.about}\n${extractedData.experience}`;
+        
+        // Call API using existing function and prompts
+        const aiResponse = await callAnthropicMessageAPI(result.claudeApiKey, combinedData);
+        
+        sendResponse({ success: true, aiResponse: aiResponse });
+        
+      } catch (error) {
+        console.error('API call failed:', error);
+        sendResponse({ success: false, error: error.message });
+      }
+    });
+  } catch (error) {
+    console.error('Error processing API request:', error);
+    sendResponse({ success: false, error: error.message });
+  }
+}
+
 document.addEventListener('DOMContentLoaded', function () {
   const input = document.getElementById('input');
   const prompt = document.getElementById('prompt');
@@ -207,10 +245,16 @@ async function callAnthropicMessageAPI(apiKey, profileData) {
       console.log('Claude Response:', responseText);
       console.log('Usage Stats:', data.usage);
 
+      // Only update DOM if elements exist (for popup usage)
       const responseElement = document.getElementById('response');
       const copyButton = document.getElementById('copyButton');
-      responseElement.textContent = responseText;
-      copyButton.disabled = false;
+      if (responseElement && copyButton) {
+        responseElement.textContent = responseText;
+        copyButton.disabled = false;
+      }
+      
+      // Return the response text for content script usage
+      return responseText;
     } else {
       console.warn('Unexpected response format:', data);
       throw new Error(`API Error: ${response.status} - ${JSON.stringify(data)}`);

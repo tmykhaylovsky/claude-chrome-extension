@@ -304,27 +304,30 @@ async function handleGrabClick() {
         extractedData.about = extractAbout();
         extractedData.experience = extractExperienceData();
         
-        // Get API key and call Claude
-        chrome.storage.sync.get(['claudeApiKey'], async (result) => {
-            if (!result.claudeApiKey) {
-                status.textContent = 'Error: API key not set. Check extension settings.';
+        // Send extraction data to popup for API processing
+        status.textContent = 'Sending to API...';
+        chrome.runtime.sendMessage({
+            action: 'processWithAPI',
+            data: {
+                name: extractedData.name,
+                headline: extractedData.headline,
+                about: extractedData.about,
+                experience: extractedData.experience
+            }
+        }, (apiResponse) => {
+            if (chrome.runtime.lastError) {
+                status.textContent = 'Error: ' + chrome.runtime.lastError.message;
                 return;
             }
             
-            try {
-                status.textContent = 'Calling Claude API...';
-                const combinedData = `${extractedData.name}\n${extractedData.headline}\n${extractedData.about}\n${extractedData.experience}`;
-                
-                extractedData.aiResponse = await callClaudeAPI(result.claudeApiKey, combinedData);
-                
+            if (apiResponse.success) {
+                extractedData.aiResponse = apiResponse.aiResponse;
                 status.textContent = 'Analysis complete!';
                 response.textContent = extractedData.aiResponse;
                 response.style.display = 'block';
                 copyBtn.style.display = 'block';
-                
-            } catch (error) {
-                status.textContent = 'API Error: ' + error.message;
-                console.error('API Error:', error);
+            } else {
+                status.textContent = 'API Error: ' + apiResponse.error;
             }
         });
         
@@ -353,76 +356,6 @@ async function copyAsLSV() {
     } catch (error) {
         console.error('Copy failed:', error);
         alert('Copy failed: ' + error.message);
-    }
-}
-
-// Call Claude API
-async function callClaudeAPI(apiKey, profileData) {
-    const apiUrl = 'https://api.anthropic.com/v1/messages';
-    
-    const systemPrompt = `You are an expert board composition analyst evaluating LinkedIn profiles against specific board of directors positions for a technology services company focused on M&A growth strategy. Your task is to determine the best fit position for a candidate and provide a concise assessment.
-
-Available Board Positions:
-
-Chairman (4%–6%) - M&A transaction leadership, former CEO/President with M&A experience
-CFO/Financial Strategist (3%–5%) - Financial operations, former CFO of public tech consulting firm
-Finance & Deal Expert (2%–4%) - Deal sourcing, Managing Director with investment banking experience
-Accounting, Audit & Regulatory Expert (2%–3%) - Big 4 Partner or Public Company Controller
-Microsoft Technology Strategist (2%–4%) - Former Microsoft Product Executive or CTO
-Enterprise Sales & Partnership Executive (2%–3%) - Enterprise sales leader with Microsoft partner experience
-Industry Practice Leader (2%–3%) - Managing Director from Big 4 or top-tier consulting firm
-Legal & Regulatory Expert (1%–2%) - Technology M&A attorney with 20+ transactions
-
-Evaluation Criteria:
-
-Match candidate's core experience to role requirements
-Assess leadership level and seniority
-Consider industry relevance and expertise depth
-Evaluate transaction/M&A experience where applicable
-
-Output Format:
-
-Best Fit Position: [Position Name and Number]
-Reason in Favor: [One brief sentence explaining the strongest match]
-Potential Concern: [One brief sentence about the biggest gap or concern]`;
-
-    const userContent = `LinkedIn Profile Summary:
-Based on the provided LinkedIn profile, determine which of the 8 board positions this candidate would be the best fit for. Provide your assessment following the specified output format with exactly one brief sentence each for the reason in favor and potential concern.
-
-${profileData}`;
-
-    const requestBody = {
-        model: "claude-sonnet-4-20250514",
-        max_tokens: 64000,
-        temperature: 0.7,
-        system: systemPrompt,
-        messages: [{
-            role: "user",
-            content: [{ type: "text", text: userContent }]
-        }]
-    };
-
-    const response = await fetch(apiUrl, {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-            'x-api-key': apiKey,
-            'anthropic-version': '2023-06-01',
-            'anthropic-dangerous-direct-browser-access': 'true'
-        },
-        body: JSON.stringify(requestBody)
-    });
-
-    if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(`API Error: ${response.status} - ${JSON.stringify(errorData)}`);
-    }
-
-    const data = await response.json();
-    if (data.content && data.content[0] && data.content[0].text) {
-        return data.content[0].text;
-    } else {
-        throw new Error('Unexpected API response format');
     }
 }
 
