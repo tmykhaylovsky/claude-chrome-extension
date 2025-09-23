@@ -1,6 +1,15 @@
-// content.js - This runs directly on LinkedIn pages
+// content.js - Content script with overlay interface
 
 console.log('LinkedIn Extractor content script loaded');
+
+// Store extracted data globally
+let extractedData = {
+    name: '',
+    headline: '',
+    about: '',
+    experience: '',
+    aiResponse: ''
+};
 
 // Function to extract person name
 function extractPersonName() {
@@ -15,7 +24,7 @@ function extractPersonName() {
     }
 }
 
-// Function to extract headline - FIXED SYNTAX ERROR
+// Function to extract headline
 function extractHeadline() {
     try {
         const element = document.querySelector('h1[data-anonymize="headline"]');
@@ -144,80 +153,292 @@ function clickAllShowMore() {
     }
 }
 
-// Listen for messages from popup/background
-chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
-    console.log('Content script received message:', request);
+// Create floating overlay interface
+function createOverlay() {
+    const overlay = document.createElement('div');
+    overlay.id = 'linkedin-extractor-overlay';
+    overlay.innerHTML = `
+        <div style="
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            width: 350px;
+            background: white;
+            border: 2px solid #0073b1;
+            border-radius: 8px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.15);
+            z-index: 999999;
+            font-family: Arial, sans-serif;
+            font-size: 14px;
+        ">
+            <div style="
+                background: #0073b1;
+                color: white;
+                padding: 10px 15px;
+                font-weight: bold;
+                border-radius: 6px 6px 0 0;
+                cursor: move;
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+            " id="overlay-header">
+                <span>Claude LinkedIn Extractor</span>
+                <span id="close-overlay" style="cursor: pointer; font-size: 18px;">&times;</span>
+            </div>
+            <div style="padding: 15px;">
+                <button id="grab-btn" style="
+                    width: 100%;
+                    background: #0073b1;
+                    color: white;
+                    border: none;
+                    padding: 10px;
+                    border-radius: 4px;
+                    font-size: 14px;
+                    cursor: pointer;
+                    margin-bottom: 10px;
+                ">Extract & Analyze</button>
+                
+                <div id="status" style="
+                    margin: 10px 0;
+                    padding: 8px;
+                    background: #f5f5f5;
+                    border-radius: 4px;
+                    min-height: 20px;
+                    font-size: 12px;
+                ">Ready to extract</div>
+                
+                <div id="response" style="
+                    margin: 10px 0;
+                    padding: 10px;
+                    background: #f9f9f9;
+                    border: 1px solid #ddd;
+                    border-radius: 4px;
+                    max-height: 200px;
+                    overflow-y: auto;
+                    font-size: 12px;
+                    display: none;
+                "></div>
+                
+                <button id="copy-tsv-btn" style="
+                    width: 100%;
+                    background: #28a745;
+                    color: white;
+                    border: none;
+                    padding: 8px;
+                    border-radius: 4px;
+                    font-size: 12px;
+                    cursor: pointer;
+                    display: none;
+                ">Copy as TSV</button>
+            </div>
+        </div>
+    `;
     
-    try {
-        if (request.action === 'extractAll') {
-            console.log('Processing extractAll request...');
-            
-            // Wait for "show more" clicks to complete, then extract
-            const showMoreCount = clickAllShowMore();
-            
-            // Use longer timeout to ensure all data loads
-            const waitTime = Math.max(showMoreCount * 500 + 2000, 3000);
-            console.log(`Waiting ${waitTime}ms for content to load...`);
-            
-            setTimeout(() => {
-                try {
-                    console.log('Extracting data after wait...');
-                    
-                    const name = extractPersonName();
-                    const headline = extractHeadline();
-                    const about = extractAbout();
-                    const experience = extractExperienceData();
-                    
-                    console.log('Extraction complete, sending response...');
-                    
-                    sendResponse({
-                        success: true, 
-                        data: {
-                            name: name,
-                            headline: headline,
-                            about: about,
-                            experience: experience,
-                            showMoreClicked: showMoreCount
-                        }
-                    });
-                } catch (error) {
-                    console.error('Error during delayed extraction:', error);
-                    sendResponse({success: false, error: error.message});
-                }
-            }, waitTime);
-            
-            return true; // Keep message channel open for async response
-        } else {
-            console.log('Unknown action:', request.action);
-            sendResponse({success: false, error: 'Unknown action: ' + request.action});
-        }
-    } catch (error) {
-        console.error('Content script error:', error);
-        sendResponse({success: false, error: error.message});
-    }
-});
-
-// Create global object for manual testing
-try {
-    window.linkedinExtractor = {
-        extractPersonName,
-        extractHeadline,
-        extractAbout,
-        extractExperienceData,
-        clickAllShowMore
-    };
-    console.log('window.linkedinExtractor created successfully');
-} catch (error) {
-    console.error('Error creating linkedinExtractor object:', error);
+    document.body.appendChild(overlay);
+    
+    // Make draggable
+    makeDraggable(overlay.querySelector('#overlay-header'), overlay);
+    
+    // Add event listeners
+    document.getElementById('close-overlay').addEventListener('click', () => {
+        overlay.remove();
+    });
+    
+    document.getElementById('grab-btn').addEventListener('click', handleGrabClick);
+    document.getElementById('copy-tsv-btn').addEventListener('click', copyAsLSV);
+    
+    return overlay;
 }
 
-// Debug: Log what elements are found on page load
+// Make overlay draggable
+function makeDraggable(header, overlay) {
+    let isDragging = false;
+    let currentX, currentY, initialX, initialY;
+    
+    header.addEventListener('mousedown', (e) => {
+        isDragging = true;
+        initialX = e.clientX - overlay.offsetLeft;
+        initialY = e.clientY - overlay.offsetTop;
+    });
+    
+    document.addEventListener('mousemove', (e) => {
+        if (isDragging) {
+            e.preventDefault();
+            currentX = e.clientX - initialX;
+            currentY = e.clientY - initialY;
+            overlay.style.left = currentX + 'px';
+            overlay.style.top = currentY + 'px';
+        }
+    });
+    
+    document.addEventListener('mouseup', () => {
+        isDragging = false;
+    });
+}
+
+// Handle grab button click
+async function handleGrabClick() {
+    const grabBtn = document.getElementById('grab-btn');
+    const status = document.getElementById('status');
+    const response = document.getElementById('response');
+    const copyBtn = document.getElementById('copy-tsv-btn');
+    
+    try {
+        grabBtn.disabled = true;
+        grabBtn.textContent = 'Processing...';
+        status.textContent = 'Clicking "Show more" buttons...';
+        
+        // Click show more buttons
+        const showMoreCount = clickAllShowMore();
+        
+        // Wait for content to load
+        const waitTime = Math.max(showMoreCount * 500 + 2000, 3000);
+        status.textContent = `Waiting ${Math.ceil(waitTime/1000)}s for content to load...`;
+        
+        await new Promise(resolve => setTimeout(resolve, waitTime));
+        
+        // Extract data
+        status.textContent = 'Extracting LinkedIn data...';
+        extractedData.name = extractPersonName();
+        extractedData.headline = extractHeadline();
+        extractedData.about = extractAbout();
+        extractedData.experience = extractExperienceData();
+        
+        // Get API key and call Claude
+        chrome.storage.sync.get(['claudeApiKey'], async (result) => {
+            if (!result.claudeApiKey) {
+                status.textContent = 'Error: API key not set. Check extension settings.';
+                return;
+            }
+            
+            try {
+                status.textContent = 'Calling Claude API...';
+                const combinedData = `${extractedData.name}\n${extractedData.headline}\n${extractedData.about}\n${extractedData.experience}`;
+                
+                extractedData.aiResponse = await callClaudeAPI(result.claudeApiKey, combinedData);
+                
+                status.textContent = 'Analysis complete!';
+                response.textContent = extractedData.aiResponse;
+                response.style.display = 'block';
+                copyBtn.style.display = 'block';
+                
+            } catch (error) {
+                status.textContent = 'API Error: ' + error.message;
+                console.error('API Error:', error);
+            }
+        });
+        
+    } catch (error) {
+        status.textContent = 'Error: ' + error.message;
+        console.error('Extraction Error:', error);
+    } finally {
+        grabBtn.disabled = false;
+        grabBtn.textContent = 'Extract & Analyze';
+    }
+}
+
+// Copy data as TSV
+async function copyAsLSV() {
+    const currentUrl = window.location.href;
+    const tsvData = `Name\tLinkedIn\tHeadline\tAbout\tExperience\tAI\n${extractedData.name}\t${currentUrl}\t${extractedData.headline}\t${extractedData.about}\t${extractedData.experience.replace(/\n/g, ' ')}\t${extractedData.aiResponse}`;
+    
+    try {
+        await navigator.clipboard.writeText(tsvData);
+        const copyBtn = document.getElementById('copy-tsv-btn');
+        const originalText = copyBtn.textContent;
+        copyBtn.textContent = 'Copied!';
+        setTimeout(() => {
+            copyBtn.textContent = originalText;
+        }, 2000);
+    } catch (error) {
+        console.error('Copy failed:', error);
+        alert('Copy failed: ' + error.message);
+    }
+}
+
+// Call Claude API
+async function callClaudeAPI(apiKey, profileData) {
+    const apiUrl = 'https://api.anthropic.com/v1/messages';
+    
+    const systemPrompt = `You are an expert board composition analyst evaluating LinkedIn profiles against specific board of directors positions for a technology services company focused on M&A growth strategy. Your task is to determine the best fit position for a candidate and provide a concise assessment.
+
+Available Board Positions:
+
+Chairman (4%–6%) - M&A transaction leadership, former CEO/President with M&A experience
+CFO/Financial Strategist (3%–5%) - Financial operations, former CFO of public tech consulting firm
+Finance & Deal Expert (2%–4%) - Deal sourcing, Managing Director with investment banking experience
+Accounting, Audit & Regulatory Expert (2%–3%) - Big 4 Partner or Public Company Controller
+Microsoft Technology Strategist (2%–4%) - Former Microsoft Product Executive or CTO
+Enterprise Sales & Partnership Executive (2%–3%) - Enterprise sales leader with Microsoft partner experience
+Industry Practice Leader (2%–3%) - Managing Director from Big 4 or top-tier consulting firm
+Legal & Regulatory Expert (1%–2%) - Technology M&A attorney with 20+ transactions
+
+Evaluation Criteria:
+
+Match candidate's core experience to role requirements
+Assess leadership level and seniority
+Consider industry relevance and expertise depth
+Evaluate transaction/M&A experience where applicable
+
+Output Format:
+
+Best Fit Position: [Position Name and Number]
+Reason in Favor: [One brief sentence explaining the strongest match]
+Potential Concern: [One brief sentence about the biggest gap or concern]`;
+
+    const userContent = `LinkedIn Profile Summary:
+Based on the provided LinkedIn profile, determine which of the 8 board positions this candidate would be the best fit for. Provide your assessment following the specified output format with exactly one brief sentence each for the reason in favor and potential concern.
+
+${profileData}`;
+
+    const requestBody = {
+        model: "claude-sonnet-4-20250514",
+        max_tokens: 64000,
+        temperature: 0.7,
+        system: systemPrompt,
+        messages: [{
+            role: "user",
+            content: [{ type: "text", text: userContent }]
+        }]
+    };
+
+    const response = await fetch(apiUrl, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'x-api-key': apiKey,
+            'anthropic-version': '2023-06-01',
+            'anthropic-dangerous-direct-browser-access': 'true'
+        },
+        body: JSON.stringify(requestBody)
+    });
+
+    if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(`API Error: ${response.status} - ${JSON.stringify(errorData)}`);
+    }
+
+    const data = await response.json();
+    if (data.content && data.content[0] && data.content[0].text) {
+        return data.content[0].text;
+    } else {
+        throw new Error('Unexpected API response format');
+    }
+}
+
+// Create overlay when page loads
 setTimeout(() => {
-    console.log('=== DEBUG INFO ===');
-    console.log('Person name elements:', document.querySelectorAll('h1[data-anonymize="person-name"]').length);
-    console.log('Headline elements:', document.querySelectorAll('h1[data-anonymize="headline"]').length);
-    console.log('About elements:', document.querySelectorAll('div[data-anonymize="person-blurb"]').length);
-    console.log('Experience entries:', document.querySelectorAll('li._experience-entry_1irc72').length);
-    console.log('Show more buttons:', document.querySelectorAll('span.button-text').length);
-    console.log('==================');
+    if (!document.getElementById('linkedin-extractor-overlay')) {
+        createOverlay();
+    }
 }, 2000);
+
+// Also create global object for manual testing
+window.linkedinExtractor = {
+    extractPersonName,
+    extractHeadline,
+    extractAbout,
+    extractExperienceData,
+    clickAllShowMore,
+    showOverlay: createOverlay
+};
