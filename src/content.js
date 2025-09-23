@@ -40,7 +40,7 @@ function extractHeadline() {
 // Function to extract about
 function extractAbout() {
     try {
-        const element = document.querySelector('p[data-anonymize="person-blurb"]');
+        const element = document.querySelector('div[data-anonymize="person-blurb"]');
         const about = element ? element.getAttribute('title').trim() : '';
         console.log('About:', about);
         return about;
