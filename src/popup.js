@@ -1,3 +1,33 @@
+// Helper function to get current tab - MOVED TO TOP
+async function getCurrentTab() {
+  const [tab] = await chrome.tabs.query({active: true, currentWindow: true});
+  return tab;
+}
+
+// Send message to content script - MOVED TO TOP
+async function sendMessageToContent(action, data = {}) {
+  try {
+    const tab = await getCurrentTab();
+
+    if (!tab.url.includes('linkedin.com')) {
+      throw new Error('Please navigate to a LinkedIn profile page');
+    }
+
+    return new Promise((resolve, reject) => {
+      chrome.tabs.sendMessage(tab.id, { action, ...data }, (response) => {
+        if (chrome.runtime.lastError) {
+          reject(new Error(chrome.runtime.lastError.message));
+        } else {
+          resolve(response);
+        }
+      });
+    });
+  } catch (error) {
+    console.error('Error sending message:', error);
+    throw error;
+  }
+}
+
 document.addEventListener('DOMContentLoaded', function () {
   const input = document.getElementById('input');
   const prompt = document.getElementById('prompt');
@@ -78,43 +108,57 @@ document.addEventListener('DOMContentLoaded', function () {
   });
 
   grabButton.addEventListener('click', async () => {
-    const response = await sendMessageToContent('extractAll');
-    var personName = '', headline = '', about = '', tsvExperienceData = '';
-    if (response.success) {
-      personName = response.data.name;
-      headline = response.data.headline;
-      about = response.data.about;
-      tsvExperienceData = response.data.experience;
-    } else {
-      console.log('extractAll failed');
-    }
+    console.log('Grab button clicked');
     
-    var combinedData = `${personName}\n${headline}\n${about}\n${tsvExperienceData}`;
+    try {
+      // Show loading state immediately
+      grabButton.disabled = true;
+      loading.style.display = 'block';
+      response.textContent = 'Extracting LinkedIn data...';
 
-    // API get key
-    chrome.storage.sync.get(['claudeApiKey'], async function (result) {
-      if (!result.claudeApiKey) {
-        response.textContent = 'API The key is not set. Please set it in the extension settings.';
-        return;
+      const extractResponse = await sendMessageToContent('extractAll');
+      console.log('Extract response:', extractResponse);
+      
+      var personName = '', headline = '', about = '', tsvExperienceData = '';
+      if (extractResponse.success) {
+        personName = extractResponse.data.name;
+        headline = extractResponse.data.headline;
+        about = extractResponse.data.about;
+        tsvExperienceData = extractResponse.data.experience;
+        
+        response.textContent = 'Data extracted, calling API...';
+      } else {
+        throw new Error('Failed to extract LinkedIn data: ' + (extractResponse.error || 'Unknown error'));
       }
+      
+      var combinedData = `${personName}\n${headline}\n${about}\n${tsvExperienceData}`;
+      console.log('Combined data length:', combinedData.length);
 
-      try {
-        grabButton.disabled = true;
-        loading.style.display = 'block';
-        response.textContent = '';
+      // API get key
+      chrome.storage.sync.get(['claudeApiKey'], async function (result) {
+        if (!result.claudeApiKey) {
+          response.textContent = 'API key is not set. Please set it in the extension settings.';
+          return;
+        }
 
-        debugger;
-        await callAnthropicMessageAPI(result.claudeApiKey, combinedData);
-      } catch (error) {
-        response.textContent = `An error has occurred: ${error.message}`;
-      } finally {
-        grabButton.disabled = false;
-        loading.style.display = 'none';
-      }
-    });
+        try {
+          await callAnthropicMessageAPI(result.claudeApiKey, combinedData);
+        } catch (error) {
+          response.textContent = `An error has occurred: ${error.message}`;
+        } finally {
+          grabButton.disabled = false;
+          loading.style.display = 'none';
+        }
+      });
+      
+    } catch (error) {
+      console.error('Grab button error:', error);
+      response.textContent = `Error: ${error.message}`;
+      grabButton.disabled = false;
+      loading.style.display = 'none';
+    }
   });
 });
-
 
 async function callAnthropicMessageAPI(apiKey, profileData) {
   const apiUrl = 'https://api.anthropic.com/v1/messages';
@@ -149,7 +193,6 @@ async function callAnthropicMessageAPI(apiKey, profileData) {
       body: JSON.stringify(requestBody)
     });
 
-    debugger;
     if (!response.ok) {
       const errorData = await response.json();
       throw new Error(`API Error: ${response.status} - ${JSON.stringify(errorData)}`);
@@ -164,44 +207,20 @@ async function callAnthropicMessageAPI(apiKey, profileData) {
       console.log('Claude Response:', responseText);
       console.log('Usage Stats:', data.usage);
 
-      response.textContent = responseText;
+      const responseElement = document.getElementById('response');
+      const copyButton = document.getElementById('copyButton');
+      responseElement.textContent = responseText;
       copyButton.disabled = false;
     } else {
       console.warn('Unexpected response format:', data);
       throw new Error(`API Error: ${response.status} - ${JSON.stringify(data)}`);
     }
 
-
   } catch (error) {
     console.error('Error calling Anthropic API:', error);
     throw error;
   }
 }
-
-// Send message to content script
-async function sendMessageToContent(action, data = {}) {
-  try {
-    const tab = await getCurrentTab();
-
-    if (!tab.url.includes('linkedin.com')) {
-      throw new Error('Please navigate to a LinkedIn profile page');
-    }
-
-    return new Promise((resolve, reject) => {
-      chrome.tabs.sendMessage(tab.id, { action, ...data }, (response) => {
-        if (chrome.runtime.lastError) {
-          reject(new Error(chrome.runtime.lastError.message));
-        } else {
-          resolve(response);
-        }
-      });
-    });
-  } catch (error) {
-    console.error('Error sending message:', error);
-    throw error;
-  }
-}
-
 
 const systemPrompt = `You are an expert board composition analyst evaluating LinkedIn profiles against specific board of directors positions for a technology services company focused on M&A growth strategy. Your task is to determine the best fit position for a candidate and provide a concise assessment.
 
