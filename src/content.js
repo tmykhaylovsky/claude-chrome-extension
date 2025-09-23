@@ -27,7 +27,7 @@ function extractPersonName() {
 // Function to extract headline
 function extractHeadline() {
     try {
-        const element = document.querySelector('h1[data-anonymize="headline"]');
+        const element = document.querySelector('span[data-anonymize="headline"]');
         const headline = element ? element.textContent.trim() : '';
         console.log('Headline:', headline);
         return headline;
@@ -40,7 +40,7 @@ function extractHeadline() {
 // Function to extract about
 function extractAbout() {
     try {
-        const element = document.querySelector('div[data-anonymize="person-blurb"]');
+        const element = document.querySelector('p[data-anonymize="person-blurb"]');
         const about = element ? element.getAttribute('title').trim() : '';
         console.log('About:', about);
         return about;
