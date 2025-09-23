@@ -343,7 +343,7 @@ async function handleGrabClick() {
 // Copy data as TSV
 async function copyAsLSV() {
     const currentUrl = window.location.href;
-    const tsvData = `Name\tLinkedIn\tHeadline\tAbout\tExperience\tAI\n${extractedData.name}\t${currentUrl}\t${extractedData.headline}\t${extractedData.about}\t${extractedData.experience.replace(/\n/g, ' ')}\t${extractedData.aiResponse}`;
+    const tsvData = `${extractedData.name}\t${currentUrl}\t${extractedData.headline}\t${extractedData.about}\t${extractedData.aiResponse}`;
     
     try {
         await navigator.clipboard.writeText(tsvData);
