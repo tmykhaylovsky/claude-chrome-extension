@@ -304,7 +304,7 @@ async function handleGrabClick() {
         extractedData.about = extractAbout();
         extractedData.experience = extractExperienceData();
         
-        // Send extraction data to popup for API processing
+        // Send extraction data to background for API processing
         status.textContent = 'Sending to API...';
         chrome.runtime.sendMessage({
             action: 'processWithAPI',
@@ -343,7 +343,15 @@ async function handleGrabClick() {
 // Copy data as TSV
 async function copyAsLSV() {
     const currentUrl = window.location.href;
-    const tsvData = `${extractedData.name}\t${currentUrl}\t${extractedData.headline}\t${extractedData.about}\t${extractedData.aiResponse}`;
+    
+    // Clean AI response for TSV: remove markdown formatting and replace line breaks with spaces
+    const cleanAiResponse = extractedData.aiResponse
+        .replace(/\*\*(.*?)\*\*/g, '$1')  // Remove **bold** formatting for TSV
+        .replace(/\n/g, ' ')              // Replace line breaks with spaces
+        .replace(/\s+/g, ' ')             // Replace multiple spaces with single space
+        .trim();
+    
+    const tsvData = `Name\tLinkedIn\tHeadline\tAbout\tExperience\tAI\n${extractedData.name}\t${currentUrl}\t${extractedData.headline}\t${extractedData.about}\t${extractedData.experience.replace(/\n/g, ' ')}\t${cleanAiResponse}`;
     
     try {
         await navigator.clipboard.writeText(tsvData);
@@ -375,3 +383,22 @@ window.linkedinExtractor = {
     clickAllShowMore,
     showOverlay: createOverlay
 };
+
+// Debug: Log what elements are found on page load
+setTimeout(() => {
+    console.log('=== DEBUG INFO ===');
+    console.log('Person name elements:', document.querySelectorAll('h1[data-anonymize="person-name"]').length);
+    console.log('Headline elements:', document.querySelectorAll('h1[data-anonymize="headline"]').length);
+    console.log('Alternative headline elements:', document.querySelectorAll('.text-heading-xlarge').length);
+    console.log('About elements (div):', document.querySelectorAll('div[data-anonymize="person-blurb"]').length);
+    console.log('About elements (any):', document.querySelectorAll('[data-anonymize="person-blurb"]').length);
+    console.log('Experience entries:', document.querySelectorAll('li._experience-entry_1irc72').length);
+    console.log('Show more buttons:', document.querySelectorAll('span.button-text').length);
+    
+    // Test extractions
+    console.log('--- TEST EXTRACTIONS ---');
+    console.log('Name test:', extractPersonName());
+    console.log('Headline test:', extractHeadline());
+    console.log('About test:', extractAbout());
+    console.log('==================');
+}, 2000);
