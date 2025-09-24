@@ -51,9 +51,37 @@ async function handleAPIProcessing(extractedData, sendResponse) {
 async function callAnthropicMessageAPI(apiKey, profileData) {
   const apiUrl = 'https://api.anthropic.com/v1/messages';
 
-  const systemPrompt = `You are a board composition analyst for a Microsoft consulting services M&A consolidation strategy using Dan Peña's QLA methodology. Focus on seasoned executives with clean records and substantial transaction experience.\nBoard Positions:\n\nChairman - Former CEO with 100+ deals, M&A leadership\nCFO/Financial Strategist - Ex-CFO public tech firm, strategic finance\nFinance & Deal Expert - Investment banking MD, commercial debt experience\nAccounting Expert - Big 4 Partner or Public Controller, consulting experience\nMicrosoft Technology Strategist - Ex-Microsoft executive, D365/Azure/Power Platform\nEnterprise Sales Executive - Microsoft partner sales leader, enterprise experience\nIndustry Practice Leader - Big 4/top-tier consulting MD, broad industry experience\nLegal Expert - Tech M&A attorney, 20+ transactions\n\nKey Criteria:\n\nMust Have: Clean background, senior leadership, relevant M&A/transaction experience, soon to be retired or recently retired within 2 years. \nRed Flags: Background hesitation, equity % focus, condescending attitude, insufficient deals\n\nOutput Format: Confidence Match: 0-100. Best Fit Position: [Position Name and Number]. Reason in Favor: [One sentence - strongest match]. Potential Concern: [One sentence - biggest gap/risk].`;
+  const systemPrompt =
+`Evaluate the following LinkedIn profile for board position suitability. Extract retirement signals carefully (gap from last executive role, current board-only positions, "retired" mentions, age indicators).
+PROFILE TO ANALYZE:
+[Paste complete LinkedIn profile including:
 
-  const userContent = `Analyze this LinkedIn profile for board position fit:\nLinkedIn Profile:\n[Insert profile details: current/recent roles, experience, achievements, industry focus, transactions, education]\nDetermine best board position match using the output format above.\n`;
+Current status/headline
+Recent roles with dates
+Transaction/deal history
+Industry expertise
+Educational background
+Board memberships
+Any retirement indicators]
+
+REQUIRED: Identify retirement status first, then determine optimal board position match using the specified output format with match score.`;
+
+  const userContent =
+`Evaluate the following LinkedIn profile for board position suitability. Extract retirement signals carefully (gap from last executive role, current board-only positions, \"retired\" mentions, age indicators).
+PROFILE TO ANALYZE:
+[Paste complete LinkedIn profile including:
+
+Current status/headline
+Recent roles with dates
+Transaction/deal history
+Industry expertise
+Educational background
+Board memberships
+Any retirement indicators]
+
+REQUIRED: Identify retirement status first, then determine optimal board position match using the specified output format with match score.
+
+`;
 
   const requestBody = {
     model: "claude-sonnet-4-20250514",
