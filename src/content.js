@@ -40,10 +40,34 @@ function extractHeadline() {
 // Function to extract about
 function extractAbout() {
     try {
-        const element = document.querySelector('p[data-anonymize="person-blurb"]');
-        const about = element ? element.textContent.trim() : '';
-        console.log('About:', about);
-        return about;
+        // Try multiple selectors for different about section formats
+        let element = document.querySelector('p[data-anonymize="person-blurb"]');
+
+        // If not found, try div format with line-clamp styling
+        if (!element) {
+            element = document.querySelector('div[data-anonymize="person-blurb"]');
+        }
+
+        if (element) {
+            // Handle nested span structures by extracting visible text
+            const visibleSpans = element.querySelectorAll('span[style*="display: inline"]');
+            if (visibleSpans.length > 0) {
+                // Extract text from visible spans
+                const about = Array.from(visibleSpans)
+                    .map(span => span.textContent.trim())
+                    .join(' ');
+                console.log('About (from spans):', about);
+                return about;
+            } else {
+                // Fallback to element's text content
+                const about = element.textContent.trim();
+                console.log('About (from element):', about);
+                return about;
+            }
+        }
+
+        console.log('About: No element found');
+        return '';
     } catch (error) {
         console.error('Error extracting about:', error);
         return '';
@@ -56,8 +80,7 @@ function extractExperienceData() {
         const experienceEntries = document.querySelectorAll('li._experience-entry_1irc72');
         console.log('Found experience entries:', experienceEntries.length);
         
-        const header = 'Title\tCompany\tFrom\tTo\tTotal\tExperience';
-        const results = [header];
+        const results = [];
         
         experienceEntries.forEach((entry, index) => {
             try {
@@ -67,22 +90,29 @@ function extractExperienceData() {
                 const companyElement = entry.querySelector('p[data-anonymize="company-name"]');
                 const company = companyElement ? companyElement.textContent.trim() : '';
                 
-                const dateElement = entry.querySelector('span.zZBAOYLmEFjcDfsYUmIEzHtLjzlKDENIg');
+                // Find date element by looking for span containing date range pattern
                 let fromDate = '', toDate = '', duration = '';
-                
-                if (dateElement) {
-                    const dateText = dateElement.textContent.trim();
-                    if (dateText.includes('–')) {
-                        const [from, to] = dateText.split('–');
-                        fromDate = from.trim();
-                        toDate = to.trim();
+                const dateParent = entry.querySelector('p._bodyText_1e5nen._default_1i6ulk._sizeXSmall_1e5nen._lowEmphasis_1i6ulk');
+
+                if (dateParent) {
+                    // Look for span containing date range within the date parent
+                    const dateSpan = dateParent.querySelector('span');
+                    if (dateSpan) {
+                        const dateText = dateSpan.textContent.trim();
+                        if (dateText.includes('–')) {
+                            const [from, to] = dateText.split('–');
+                            fromDate = from.trim();
+                            toDate = to.trim();
+                        } else {
+                            fromDate = dateText;
+                        }
                     }
-                    
-                    const durationParent = dateElement.closest('p');
-                    if (durationParent) {
-                        const durationMatch = durationParent.textContent.match(/(\d+\s+(?:yrs?|mos?|days?)(?:\s+\d+\s+(?:yrs?|mos?|days?))*)/);
-                        duration = durationMatch ? durationMatch[1].trim() : '';
-                    }
+
+                    // Extract duration from the parent paragraph's text content
+                    const parentText = dateParent.textContent.trim();
+                    // Find duration pattern (numbers followed by yrs/mos/days)
+                    const durationMatch = parentText.match(/(\d+\s+(?:yrs?|mos?)(?:\s+\d+\s+(?:yrs?|mos?))*)\s*$/);
+                    duration = durationMatch ? durationMatch[1].trim() : '';
                 }
                 
                 const experienceElement = entry.querySelector('p[data-anonymize="person-blurb"]');
@@ -113,11 +143,15 @@ function extractExperienceData() {
                 console.error(`Error processing entry ${index + 1}:`, error);
             }
         });
+
+        var output = results.join('\n');
         
-        return results.join('\n');
+        console.log('Experience:\n' + output);
+
+        return output;
     } catch (error) {
         console.error('Error extracting experience data:', error);
-        return 'Title\tCompany\tFrom\tTo\tTotal\tExperience';
+        return '';
     }
 }
 
@@ -162,7 +196,7 @@ function createOverlay() {
             position: fixed;
             top: 20px;
             right: 20px;
-            width: 350px;
+            width: 400px;
             background: white;
             border: 2px solid #0073b1;
             border-radius: 8px;
@@ -170,6 +204,8 @@ function createOverlay() {
             z-index: 999999;
             font-family: Arial, sans-serif;
             font-size: 14px;
+            max-height: 80vh;
+            overflow: hidden;
         ">
             <div style="
                 background: #0073b1;
@@ -185,7 +221,36 @@ function createOverlay() {
                 <span>Claude LinkedIn Extractor</span>
                 <span id="close-overlay" style="cursor: pointer; font-size: 18px;">&times;</span>
             </div>
-            <div style="padding: 15px;">
+
+            <!-- Tab Navigation -->
+            <div style="
+                display: flex;
+                background: #f0f8ff;
+                border-bottom: 1px solid #ddd;
+            ">
+                <button id="main-tab" class="tab-btn active" style="
+                    flex: 1;
+                    padding: 10px;
+                    border: none;
+                    background: #0073b1;
+                    color: white;
+                    cursor: pointer;
+                    font-size: 12px;
+                    font-weight: bold;
+                ">Extract & Analyze</button>
+                <button id="debug-tab" class="tab-btn" style="
+                    flex: 1;
+                    padding: 10px;
+                    border: none;
+                    background: #f0f8ff;
+                    color: #0073b1;
+                    cursor: pointer;
+                    font-size: 12px;
+                ">Debug Data</button>
+            </div>
+
+            <!-- Main Tab Content -->
+            <div id="main-content" class="tab-content" style="padding: 15px;">
                 <button id="grab-btn" style="
                     width: 100%;
                     background: #0073b1;
@@ -197,7 +262,7 @@ function createOverlay() {
                     cursor: pointer;
                     margin-bottom: 10px;
                 ">Extract & Analyze</button>
-                
+
                 <div id="status" style="
                     margin: 10px 0;
                     padding: 8px;
@@ -206,7 +271,7 @@ function createOverlay() {
                     min-height: 20px;
                     font-size: 12px;
                 ">Ready to extract</div>
-                
+
                 <div id="response" style="
                     margin: 10px 0;
                     padding: 10px;
@@ -218,7 +283,7 @@ function createOverlay() {
                     font-size: 12px;
                     display: none;
                 "></div>
-                
+
                 <button id="copy-tsv-btn" style="
                     width: 100%;
                     background: #28a745;
@@ -230,6 +295,175 @@ function createOverlay() {
                     cursor: pointer;
                     display: none;
                 ">Copy as TSV</button>
+            </div>
+
+            <!-- Debug Tab Content -->
+            <div id="debug-content" class="tab-content" style="
+                padding: 15px;
+                display: none;
+                max-height: 60vh;
+                overflow-y: auto;
+            ">
+                <div class="debug-section">
+                    <h4 style="
+                        margin: 0 0 10px 0;
+                        color: #0073b1;
+                        font-size: 13px;
+                        cursor: pointer;
+                        display: flex;
+                        align-items: center;
+                    " onclick="toggleDebugSection('person-name')">
+                        <span id="person-name-toggle" style="margin-right: 5px;">▼</span>
+                        Person Name
+                    </h4>
+                    <div id="person-name-content" class="debug-content" style="
+                        margin-bottom: 15px;
+                        padding: 8px;
+                        background: #f8f9fa;
+                        border-radius: 4px;
+                        font-family: monospace;
+                        font-size: 11px;
+                        border-left: 3px solid #0073b1;
+                    "></div>
+                </div>
+
+                <div class="debug-section">
+                    <h4 style="
+                        margin: 0 0 10px 0;
+                        color: #0073b1;
+                        font-size: 13px;
+                        cursor: pointer;
+                        display: flex;
+                        align-items: center;
+                    " onclick="toggleDebugSection('headline')">
+                        <span id="headline-toggle" style="margin-right: 5px;">▼</span>
+                        Headline
+                    </h4>
+                    <div id="headline-content" class="debug-content" style="
+                        margin-bottom: 15px;
+                        padding: 8px;
+                        background: #f8f9fa;
+                        border-radius: 4px;
+                        font-family: monospace;
+                        font-size: 11px;
+                        border-left: 3px solid #0073b1;
+                    "></div>
+                </div>
+
+                <div class="debug-section">
+                    <h4 style="
+                        margin: 0 0 10px 0;
+                        color: #0073b1;
+                        font-size: 13px;
+                        cursor: pointer;
+                        display: flex;
+                        align-items: center;
+                    " onclick="toggleDebugSection('about')">
+                        <span id="about-toggle" style="margin-right: 5px;">▼</span>
+                        About
+                    </h4>
+                    <div id="about-content" class="debug-content" style="
+                        margin-bottom: 15px;
+                        padding: 8px;
+                        background: #f8f9fa;
+                        border-radius: 4px;
+                        font-family: monospace;
+                        font-size: 11px;
+                        border-left: 3px solid #0073b1;
+                        max-height: 120px;
+                        overflow-y: auto;
+                    "></div>
+                </div>
+
+                <div class="debug-section">
+                    <h4 style="
+                        margin: 0 0 10px 0;
+                        color: #0073b1;
+                        font-size: 13px;
+                        cursor: pointer;
+                        display: flex;
+                        align-items: center;
+                    " onclick="toggleDebugSection('experience')">
+                        <span id="experience-toggle" style="margin-right: 5px;">▼</span>
+                        Experience
+                    </h4>
+                    <div id="experience-content" class="debug-content" style="
+                        margin-bottom: 15px;
+                        padding: 8px;
+                        background: #f8f9fa;
+                        border-radius: 4px;
+                        font-family: monospace;
+                        font-size: 11px;
+                        border-left: 3px solid #0073b1;
+                        max-height: 150px;
+                        overflow-y: auto;
+                    "></div>
+                </div>
+
+                <div class="debug-section">
+                    <h4 style="
+                        margin: 0 0 10px 0;
+                        color: #0073b1;
+                        font-size: 13px;
+                        cursor: pointer;
+                        display: flex;
+                        align-items: center;
+                    " onclick="toggleDebugSection('prompts')">
+                        <span id="prompts-toggle" style="margin-right: 5px;">▼</span>
+                        System & User Prompts
+                    </h4>
+                    <div id="prompts-content" class="debug-content" style="
+                        margin-bottom: 15px;
+                        padding: 8px;
+                        background: #f8f9fa;
+                        border-radius: 4px;
+                        font-family: monospace;
+                        font-size: 11px;
+                        border-left: 3px solid #0073b1;
+                        max-height: 120px;
+                        overflow-y: auto;
+                    "></div>
+                </div>
+
+                <div class="debug-section">
+                    <h4 style="
+                        margin: 0 0 10px 0;
+                        color: #0073b1;
+                        font-size: 13px;
+                        cursor: pointer;
+                        display: flex;
+                        align-items: center;
+                    " onclick="toggleDebugSection('ai-result')">
+                        <span id="ai-result-toggle" style="margin-right: 5px;">▼</span>
+                        AI Result
+                    </h4>
+                    <div id="ai-result-content" class="debug-content" style="
+                        margin-bottom: 15px;
+                        padding: 8px;
+                        background: #f8f9fa;
+                        border-radius: 4px;
+                        font-family: monospace;
+                        font-size: 11px;
+                        border-left: 3px solid #0073b1;
+                        max-height: 150px;
+                        overflow-y: auto;
+                    "></div>
+                </div>
+
+                <!-- Copy Debug Data Button -->
+                <div style="margin-top: 20px; padding-top: 15px; border-top: 1px solid #ddd;">
+                    <button id="copy-debug-btn" style="
+                        width: 100%;
+                        background: #28a745;
+                        color: white;
+                        border: none;
+                        padding: 10px;
+                        border-radius: 4px;
+                        font-size: 12px;
+                        cursor: pointer;
+                        font-weight: bold;
+                    ">📋 Copy All Debug Data</button>
+                </div>
             </div>
         </div>
     `;
@@ -243,12 +477,231 @@ function createOverlay() {
     document.getElementById('close-overlay').addEventListener('click', () => {
         overlay.remove();
     });
-    
+
     document.getElementById('grab-btn').addEventListener('click', handleGrabClick);
     document.getElementById('copy-tsv-btn').addEventListener('click', copyAsLSV);
+
+    // Tab switching
+    document.getElementById('main-tab').addEventListener('click', () => switchTab('main'));
+    document.getElementById('debug-tab').addEventListener('click', () => switchTab('debug'));
+
+    // Debug copy button
+    document.getElementById('copy-debug-btn').addEventListener('click', copyDebugData);
     
     return overlay;
 }
+
+// Tab switching functionality
+function switchTab(tabName) {
+    const mainTab = document.getElementById('main-tab');
+    const debugTab = document.getElementById('debug-tab');
+    const mainContent = document.getElementById('main-content');
+    const debugContent = document.getElementById('debug-content');
+
+    if (tabName === 'main') {
+        mainTab.style.background = '#0073b1';
+        mainTab.style.color = 'white';
+        mainTab.style.fontWeight = 'bold';
+        debugTab.style.background = '#f0f8ff';
+        debugTab.style.color = '#0073b1';
+        debugTab.style.fontWeight = 'normal';
+        mainContent.style.display = 'block';
+        debugContent.style.display = 'none';
+    } else {
+        debugTab.style.background = '#0073b1';
+        debugTab.style.color = 'white';
+        debugTab.style.fontWeight = 'bold';
+        mainTab.style.background = '#f0f8ff';
+        mainTab.style.color = '#0073b1';
+        mainTab.style.fontWeight = 'normal';
+        debugContent.style.display = 'block';
+        mainContent.style.display = 'none';
+    }
+}
+
+// Toggle debug sections
+function toggleDebugSection(sectionName) {
+    const content = document.getElementById(`${sectionName}-content`);
+    const toggle = document.getElementById(`${sectionName}-toggle`);
+
+    if (content.style.display === 'none') {
+        content.style.display = 'block';
+        toggle.textContent = '▼';
+    } else {
+        content.style.display = 'none';
+        toggle.textContent = '►';
+    }
+}
+
+// Update debug data in the debug tab
+function updateDebugData() {
+    const data = extractedData;
+
+    // Update person name
+    document.getElementById('person-name-content').textContent =
+        data.name || 'No data extracted';
+
+    // Update headline
+    document.getElementById('headline-content').textContent =
+        data.headline || 'No data extracted';
+
+    // Update about
+    document.getElementById('about-content').textContent =
+        data.about || 'No data extracted';
+
+    // Update experience
+    document.getElementById('experience-content').textContent =
+        data.experience || 'No data extracted';
+
+    // Update prompts (system and user)
+    const promptsContent = document.getElementById('prompts-content');
+    promptsContent.innerHTML = '';
+
+    if (data.systemPrompt) {
+        const systemDiv = document.createElement('div');
+        systemDiv.style.marginBottom = '10px';
+        systemDiv.innerHTML = `<strong style="color: #0073b1;">System Prompt:</strong><br>${data.systemPrompt}`;
+        promptsContent.appendChild(systemDiv);
+    }
+
+    if (data.userPrompt) {
+        const userDiv = document.createElement('div');
+        userDiv.innerHTML = `<strong style="color: #0073b1;">User Prompt:</strong><br>${data.userPrompt}`;
+        promptsContent.appendChild(userDiv);
+    }
+
+    if (!data.systemPrompt && !data.userPrompt) {
+        promptsContent.textContent = 'No prompts set';
+    }
+
+    // Update AI result
+    document.getElementById('ai-result-content').textContent =
+        data.aiResponse || 'No AI response yet';
+}
+
+// Format AI response from JSON to readable HTML
+function formatAIResponse(rawResponse) {
+    try {
+        let jsonText = rawResponse.trim();
+
+        // Remove markdown code block formatting if present
+        if (jsonText.startsWith('```json') && jsonText.endsWith('```')) {
+            jsonText = jsonText.replace(/^```json\s*/, '').replace(/\s*```$/, '');
+        } else if (jsonText.startsWith('```') && jsonText.endsWith('```')) {
+            jsonText = jsonText.replace(/^```\s*/, '').replace(/\s*```$/, '');
+        }
+
+        // Try to parse as JSON
+        const parsed = JSON.parse(jsonText.trim());
+
+        if (parsed.score !== undefined && parsed.category && parsed.rationale) {
+            // Determine retirement color based on status
+            const retiredValue = parsed.retired || 'Not specified';
+            let retiredColor = '#333'; // default
+
+            if (retiredValue === 'Active' || retiredValue.toLowerCase().includes('active')) {
+                retiredColor = '#28a745'; // GREEN
+            } else if (retiredValue === 'Unknown' || retiredValue === 'Not specified') {
+                retiredColor = '#6c757d'; // GRAY
+            } else {
+                // Parse retirement date to calculate years
+                const currentYear = new Date().getFullYear();
+                const retiredYear = parseInt(retiredValue.split(' ')[1]) || currentYear;
+                const yearsSinceRetired = currentYear - retiredYear;
+
+                if (yearsSinceRetired <= 2) {
+                    retiredColor = '#28a745'; // GREEN (0-2 years)
+                } else if (yearsSinceRetired <= 5) {
+                    retiredColor = '#fd7e14'; // ORANGE (2-5 years)
+                } else {
+                    retiredColor = '#dc3545'; // RED (5+ years)
+                }
+            }
+
+            let html = `<div style="line-height: 1.4;">
+                <div style="display: flex; margin-bottom: 8px;">
+                    <div style="flex: 1; margin-right: 10px;"><strong>Score:</strong> ${parsed.score}</div>
+                    <div style="flex: 1; color: ${retiredColor};"><strong>Retired:</strong> ${retiredValue}</div>
+                </div>
+                <div style="margin-bottom: 8px;"><strong>Category:</strong> ${parsed.category}</div>
+                <div style="margin-bottom: 8px;"><strong>Rationale:</strong> ${parsed.rationale}</div>`;
+
+            if (parsed.promptSuggestion) {
+                html += `<div style="margin-top: 12px; padding: 8px; background: #e3f2fd; border-left: 3px solid #2196f3; border-radius: 4px;">
+                    <div style="font-weight: bold; color: #1976d2; margin-bottom: 4px;">💡 Prompt Improvement:</div>
+                    <div style="font-size: 11px;">${parsed.promptSuggestion}</div>
+                </div>`;
+            }
+
+            html += `</div>`;
+            return html;
+        }
+    } catch (e) {
+        // If JSON parsing fails, fall back to original format
+        console.log('Failed to parse JSON response, displaying as text:', e);
+    }
+
+    // Fallback to original text display
+    return rawResponse;
+}
+
+// Copy all debug data to clipboard
+async function copyDebugData() {
+    const data = extractedData;
+    const copyBtn = document.getElementById('copy-debug-btn');
+    const originalText = copyBtn.textContent;
+
+    try {
+        const debugText = `=== LINKEDIN PROFILE DEBUG DATA ===
+
+PERSON NAME:
+${data.name || 'No data extracted'}
+
+HEADLINE:
+${data.headline || 'No data extracted'}
+
+ABOUT:
+${data.about || 'No data extracted'}
+
+EXPERIENCE:
+${data.experience || 'No data extracted'}
+
+SYSTEM PROMPT:
+${data.systemPrompt || 'No system prompt available'}
+
+USER PROMPT:
+${data.userPrompt || 'No user prompt available'}
+
+AI RESPONSE:
+${data.aiResponse || 'No AI response yet'}
+
+=== END DEBUG DATA ===`;
+
+        await navigator.clipboard.writeText(debugText);
+
+        // Visual feedback
+        copyBtn.textContent = '✅ Copied!';
+        copyBtn.style.background = '#28a745';
+
+        setTimeout(() => {
+            copyBtn.textContent = originalText;
+            copyBtn.style.background = '#28a745';
+        }, 2000);
+
+    } catch (error) {
+        console.error('Copy failed:', error);
+        copyBtn.textContent = '❌ Copy failed';
+        copyBtn.style.background = '#dc3545';
+
+        setTimeout(() => {
+            copyBtn.textContent = originalText;
+            copyBtn.style.background = '#28a745';
+        }, 2000);
+    }
+}
+
+// Make toggleDebugSection globally available
+window.toggleDebugSection = toggleDebugSection;
 
 // Make overlay draggable
 function makeDraggable(header, overlay) {
@@ -303,6 +756,9 @@ async function handleGrabClick() {
         extractedData.headline = extractHeadline();
         extractedData.about = extractAbout();
         extractedData.experience = extractExperienceData();
+
+        // Update debug data display
+        updateDebugData();
         
         // Send extraction data to background for API processing
         status.textContent = 'Sending to API...';
@@ -322,10 +778,28 @@ async function handleGrabClick() {
             
             if (apiResponse.success) {
                 extractedData.aiResponse = apiResponse.aiResponse;
+                extractedData.systemPrompt = apiResponse.systemPrompt;
+                extractedData.userPrompt = apiResponse.userPrompt;
+
                 status.textContent = 'Analysis complete!';
-                response.textContent = extractedData.aiResponse;
+                status.style.background = '#d4edda';
+                status.style.color = '#155724';
+
+                // Flash success and then hide status after 3 seconds
+                setTimeout(() => {
+                    status.style.transition = 'opacity 0.5s ease-out';
+                    status.style.opacity = '0';
+                    setTimeout(() => {
+                        status.style.display = 'none';
+                    }, 500);
+                }, 2500);
+
+                response.innerHTML = formatAIResponse(extractedData.aiResponse);
                 response.style.display = 'block';
                 copyBtn.style.display = 'block';
+
+                // Update debug data display with all information including prompts
+                updateDebugData();
             } else {
                 status.textContent = 'API Error: ' + apiResponse.error;
             }
@@ -385,20 +859,20 @@ window.linkedinExtractor = {
 };
 
 // Debug: Log what elements are found on page load
-setTimeout(() => {
-    console.log('=== DEBUG INFO ===');
-    console.log('Person name elements:', document.querySelectorAll('h1[data-anonymize="person-name"]').length);
-    console.log('Headline elements:', document.querySelectorAll('h1[data-anonymize="headline"]').length);
-    console.log('Alternative headline elements:', document.querySelectorAll('.text-heading-xlarge').length);
-    console.log('About elements (div):', document.querySelectorAll('div[data-anonymize="person-blurb"]').length);
-    console.log('About elements (any):', document.querySelectorAll('[data-anonymize="person-blurb"]').length);
-    console.log('Experience entries:', document.querySelectorAll('li._experience-entry_1irc72').length);
-    console.log('Show more buttons:', document.querySelectorAll('span.button-text').length);
+// setTimeout(() => {
+//     console.log('=== DEBUG INFO ===');
+//     console.log('Person name elements:', document.querySelectorAll('h1[data-anonymize="person-name"]').length);
+//     console.log('Headline elements:', document.querySelectorAll('h1[data-anonymize="headline"]').length);
+//     console.log('Alternative headline elements:', document.querySelectorAll('.text-heading-xlarge').length);
+//     console.log('About elements (div):', document.querySelectorAll('div[data-anonymize="person-blurb"]').length);
+//     console.log('About elements (any):', document.querySelectorAll('[data-anonymize="person-blurb"]').length);
+//     console.log('Experience entries:', document.querySelectorAll('li._experience-entry_1irc72').length);
+//     console.log('Show more buttons:', document.querySelectorAll('span.button-text').length);
     
-    // Test extractions
-    console.log('--- TEST EXTRACTIONS ---');
-    console.log('Name test:', extractPersonName());
-    console.log('Headline test:', extractHeadline());
-    console.log('About test:', extractAbout());
-    console.log('==================');
-}, 2000);
+//     // Test extractions
+//     console.log('--- TEST EXTRACTIONS ---');
+//     console.log('Name test:', extractPersonName());
+//     console.log('Headline test:', extractHeadline());
+//     console.log('About test:', extractAbout());
+//     console.log('==================');
+// }, 2000);
